@@ -1,18 +1,25 @@
-# src/clearvision/ocr.py
-import pytesseract
+from pytesseract import pytesseract
+from PIL import Image
+from clearvision.detection import TextDetection
+from clearvision.cleaning import TextCleaning
+import cv2
+
 
 class OCR:
     def __init__(self):
-        pass
+        self.text_cleaning = TextCleaning()
 
-    def perform_ocr(self, cleaned_text_areas):
-        """
-        Perform OCR on the cleaned text areas using pytesseract and custom AI/ML models.
+    def perform_ocr(self, image_path):
+        text_detection = TextDetection()
+        image = cv2.imread(image_path)
+        bounding_boxes = text_detection.detect_text_areas(image_path)
+        cleaned_images = self.text_cleaning.clean_text_areas(image, bounding_boxes)
 
-        Args:
-        - cleaned_text_areas (list of dict): A list of cleaned text areas ready for OCR.
-
-        Returns:
-        - list of str: A list of OCR results for each text area.
-        """
-        pass
+        results = []
+        for i, cleaned_image in enumerate(cleaned_images):
+            pil_image = Image.fromarray(cleaned_image.astype('uint8'))
+            text = pytesseract.image_to_string(pil_image)
+            results.append({"text": text,
+                            "coordinates": bounding_boxes[i],
+                            "confidence": None})
+        return results
