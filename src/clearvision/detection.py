@@ -1,38 +1,38 @@
 import os
+
 import cv2
 import numpy as np
+from imutils.object_detection import non_max_suppression
 
 
 class TextDetection:
     def __init__(self):
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = os.path.join(script_dir, 'models', 'frozen_east_text_detection.pb')
+        model_path = os.path.join(script_dir, "models", "frozen_east_text_detection.pb")
         self.net = cv2.dnn.readNet(model_path)
 
-    def detect_text_areas(self, image_path):
-        image = cv2.imread(image_path)
-        orig = image.copy()
-        (H, W) = image.shape[:2]
-        (newW, newH) = (320, 320)
-        rW = W / float(newW)
-        rH = H / float(newH)
+    def detect_text_areas(self, orig_image):
+        image = cv2.copy(orig_image)
+        (newW, newH) = (640, 640)
         image = cv2.resize(image, (newW, newH))
-        blob = cv2.dnn.blobFromImage(image, 1.0, (newW, newH),
-                                     (123.68, 116.78, 103.94),
-                                     swapRB=True, crop=False)
+        blob = cv2.dnn.blobFromImage(
+            image, 1.0, (newW, newH), (123.68, 116.78, 103.94), swapRB=True, crop=False
+        )
         self.net.setInput(blob)
 
-        # Specify the output layer names
-        layerNames = [
-            "feature_fusion/Conv_7/Sigmoid",
-            "feature_fusion/concat_3"
-        ]
+        layerNames = ["feature_fusion/Conv_7/Sigmoid", "feature_fusion/concat_3"]
 
-        # Get the output layers
         (scores, geometry) = self.net.forward(layerNames)
-
         (rects, confidences) = self.decode_predictions(scores, geometry)
-        bounding_boxes = self.get_bounding_boxes(rects, confidences, rW, rH, orig)
+        bounding_boxes = non_max_suppression(np.array(rects), probs=confidences)
+
+        # Draw rectangles on the original image
+        result_image = self.draw_bounding_boxes(image, bounding_boxes)
+
+        # Display the image with rectangles
+        cv2.imshow("Image with Rectangles", result_image)
+        cv2.waitKey(0)  # Wait for a key press to close the window
+
         return bounding_boxes
 
     def decode_predictions(self, scores, geometry):
@@ -67,13 +67,8 @@ class TextDetection:
 
         return (rects, confidences)
 
-    def get_bounding_boxes(self, rects, confidences, rW, rH, orig):
-        boxes = []
-        for _, box in enumerate(rects):
-            startX, startY, endX, endY = box
-            startX = int(startX * rW)
-            startY = int(startY * rH)
-            endX = int(endX * rW)
-            endY = int(endY * rH)
-            boxes.append((startX, startY, endX, endY))
-        return boxes
+    def draw_bounding_boxes(self, image, bounding_boxes):
+        result_image = image.copy()
+        for startX, startY, endX, endY in bounding_boxes:
+            cv2.rectangle(result_image, (startX, startY), (endX, endY), (0, 255, 0), 2)
+        return result_image
