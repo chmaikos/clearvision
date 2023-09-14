@@ -12,8 +12,12 @@ class TextDetection:
         self.net = cv2.dnn.readNet(model_path)
 
     def detect_text_areas(self, orig_image):
-        image = cv2.copy(orig_image)
+        image = orig_image.copy()
+        (origH, origW) = orig_image.shape[:2]
         (newW, newH) = (640, 640)
+        rW = origW / float(newW)
+        rH = origH / float(newH)
+
         image = cv2.resize(image, (newW, newH))
         blob = cv2.dnn.blobFromImage(
             image, 1.0, (newW, newH), (123.68, 116.78, 103.94), swapRB=True, crop=False
@@ -24,14 +28,27 @@ class TextDetection:
 
         (scores, geometry) = self.net.forward(layerNames)
         (rects, confidences) = self.decode_predictions(scores, geometry)
-        bounding_boxes = non_max_suppression(np.array(rects), probs=confidences)
+        expanded_bounding_boxes = []
+        expansion_factor = 2  # Adjust this value to get the desired expansion
+        for startX, startY, endX, endY in rects:
+            width = endX - startX
+            height = endY - startY
 
-        # Draw rectangles on the original image
-        result_image = self.draw_bounding_boxes(image, bounding_boxes)
+            startX = int(max(0, startX - (width * (expansion_factor - 1)) / 2))
+            startY = int(max(0, startY - (height * (expansion_factor - 1)) / 2))
+            endX = int(min(origW, endX + (width * (expansion_factor - 1)) / 2))
+            endY = int(min(origH, endY + (height * (expansion_factor - 1)) / 2))
 
-        # Display the image with rectangles
-        cv2.imshow("Image with Rectangles", result_image)
-        cv2.waitKey(0)  # Wait for a key press to close the window
+            startX = int(startX * rW)
+            startY = int(startY * rH)
+            endX = int(endX * rW)
+            endY = int(endY * rH)
+
+            expanded_bounding_boxes.append((startX, startY, endX, endY))
+
+        bounding_boxes = non_max_suppression(
+            np.array(expanded_bounding_boxes), probs=confidences
+        )
 
         return bounding_boxes
 
@@ -66,9 +83,3 @@ class TextDetection:
                 confidences.append(scoresData[x])
 
         return (rects, confidences)
-
-    def draw_bounding_boxes(self, image, bounding_boxes):
-        result_image = image.copy()
-        for startX, startY, endX, endY in bounding_boxes:
-            cv2.rectangle(result_image, (startX, startY), (endX, endY), (0, 255, 0), 2)
-        return result_image
