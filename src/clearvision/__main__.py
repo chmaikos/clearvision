@@ -31,7 +31,7 @@ def main():
         ]
         output_data = {}
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=8) as executor:
             results = list(executor.map(ocr.perform_ocr, image_paths))
 
         for i, res in enumerate(results):

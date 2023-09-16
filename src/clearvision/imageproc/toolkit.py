@@ -68,88 +68,62 @@ def thresholding(image, method="adaptive", block_size=13, C=1):
         return image
 
 
-def _getSkewAngle(cvImage) -> float:
-    """Calculates the skew angle of an image.
-
-    Args:
-    cvImage (ndarray): Input image.
-
-    Returns:
-    float: Skew angle.
-    """
+def deskew(image, method="moments"):
     try:
-        # Prep image, copy, convert to gray scale, blur, and threshold
-        newImage = cvImage.copy()
-        gray = cv2.cvtColor(newImage, cv2.COLOR_BGR2GRAY)
-        blur = cv2.GaussianBlur(gray, (9, 9), 0)
-        thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+        if image is None:
+            raise ValueError("Image is None")
 
-        # Apply dilate to merge text into lines/paragraphs
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (30, 5))
-        dilate = cv2.dilate(thresh, kernel, iterations=5)
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, binary_image = cv2.threshold(
+            gray_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
 
-        # Find all contours
-        contours, _ = cv2.findContours(dilate, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+        if method == "moments":
+            angle = -_deskew_moments(binary_image)
+        elif method == "hough":
+            angle = -_deskew_hough(binary_image)
+        else:
+            raise ValueError("Invalid method. Use 'moments' or 'hough'.")
 
-        # Ensure at least one contour was found
-        if len(contours) == 0:
-            logging.warning("No contours found in image.")
-            return 0.0
-
-        # Find largest contour and surround in min area box
-        largestContour = contours[0]
-        minAreaRect = cv2.minAreaRect(largestContour)
-
-        # Determine the angle
-        angle = minAreaRect[-1]
-        if angle < -45:
-            angle = 90 + angle
-        return -1.0 * angle
-    except Exception as e:
-        logging.error(f"Failed to calculate skew angle: {e}")
-        return 0.0
-
-
-def _rotateImage(cvImage, angle: float):
-    """Rotates the image around its center.
-
-    Args:
-    cvImage (ndarray): Input image.
-    angle (float): Angle to rotate the image.
-
-    Returns:
-    ndarray: Rotated image.
-    """
-    try:
-        newImage = cvImage.copy()
-        (h, w) = newImage.shape[:2]
+        (h, w) = image.shape[:2]
         center = (w // 2, h // 2)
         M = cv2.getRotationMatrix2D(center, angle, 1.0)
-        newImage = cv2.warpAffine(
-            newImage, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
+        deskewed_image = cv2.warpAffine(
+            image,
+            M,
+            (w, h),
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(255, 255, 255),
         )
-        return newImage
+
+        return deskewed_image
     except Exception as e:
-        logging.error(f"Failed to rotate image: {e}")
-        return cvImage
+        logging.error(f"An error occurred: {e}")
+        return None
 
 
-def deskew(cvImage):
-    """Deskews the input image.
+def _deskew_moments(image):
+    moments = cv2.moments(image)
+    if abs(moments["mu02"]) < 1e-2:
+        return 0
+    skew = moments["mu11"] / moments["mu02"]
+    angle = np.arctan(skew) * (180 / np.pi)
+    angle = min(max(angle, -5), 5)
+    return angle
 
-    Args:
-    cvImage (ndarray): Input image.
 
-    Returns:
-    ndarray: Deskewed image.
-    """
-    try:
-        angle = _getSkewAngle(cvImage)
-        return _rotateImage(cvImage, -1.0 * angle)
-    except Exception as e:
-        logging.error(f"Failed to deskew image: {e}")
-        return cvImage
+def _deskew_hough(image):
+    edges = cv2.Canny(image, 50, 150, apertureSize=3)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, minLineLength=50, maxLineGap=5)
+    if lines is None:
+        return 0
+    angles = []
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        angles.append(np.arctan2(y2 - y1, x2 - x1))
+    angle = (np.mean(angles) * 180 / np.pi) - 90
+    return angle
 
 
 def get_quadrilateral_corners(image):

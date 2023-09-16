@@ -1,12 +1,13 @@
 import logging
 
-import cv2
-
 from clearvision.imageproc.toolkit import (
     adjust_contrast_brightness,
+    denoise_image,
     deskew,
     thresholding,
 )
+
+# import cv2
 
 
 class TextCleaning:
@@ -26,19 +27,17 @@ class TextCleaning:
                 )
                 continue
 
-            # Step 1: Correct skew
-            roi = deskew(roi)
+            roi = denoise_image(roi)
 
-            # # Step 3: Adjust contrast and brightness
+            roi = deskew(roi, method="moments")
             roi = adjust_contrast_brightness(roi, method="clahe")
 
-            # # Step 4: Apply thresholding
             roi = thresholding(roi, method="otsu")
 
             # Debug: Display the processed ROI
-            cv2.imshow("Debug Window", roi)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            # cv2.imshow("Debug Window", roi)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
 
             cleaned_images.append(roi)
         return cleaned_images
