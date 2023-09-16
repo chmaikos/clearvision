@@ -14,7 +14,7 @@ class TextDetection:
     def detect_text_areas(self, orig_image):
         image = orig_image.copy()
         (origH, origW) = orig_image.shape[:2]
-        (newW, newH) = (640, 640)
+        (newW, newH) = (320, 320)
         rW = origW / float(newW)
         rH = origH / float(newH)
 
@@ -27,9 +27,9 @@ class TextDetection:
         layerNames = ["feature_fusion/Conv_7/Sigmoid", "feature_fusion/concat_3"]
 
         (scores, geometry) = self.net.forward(layerNames)
-        (rects, confidences) = self.decode_predictions(scores, geometry)
+        (rects, confidences) = self._decode_predictions(scores, geometry)
         expanded_bounding_boxes = []
-        expansion_factor = 2  # Adjust this value to get the desired expansion
+        expansion_factor = 1.5  # Adjust this value to get the desired expansion
         for startX, startY, endX, endY in rects:
             width = endX - startX
             height = endY - startY
@@ -46,13 +46,46 @@ class TextDetection:
 
             expanded_bounding_boxes.append((startX, startY, endX, endY))
 
+        # Combine bounding boxes that are in close proximity
+        combined_bounding_boxes = self._combine_close_boxes(expanded_bounding_boxes)
+
+        # Apply non-max suppression to remove duplicates and retain the most probable
         bounding_boxes = non_max_suppression(
-            np.array(expanded_bounding_boxes), probs=confidences
+            np.array(combined_bounding_boxes), probs=None
         )
 
         return bounding_boxes
 
-    def decode_predictions(self, scores, geometry):
+    def _combine_close_boxes(self, bounding_boxes, threshold=50):
+        if len(bounding_boxes) == 0:
+            return []
+
+        combined_boxes = [bounding_boxes[0]]
+        for box in bounding_boxes[1:]:
+            for i, combined_box in enumerate(combined_boxes):
+                if self._is_close(box, combined_box, threshold):
+                    x1, y1, x2, y2 = combined_box
+                    x1_2, y1_2, x2_2, y2_2 = box
+                    new_box = (
+                        min(x1, x1_2),
+                        min(y1, y1_2),
+                        max(x2, x2_2),
+                        max(y2, y2_2),
+                    )
+                    combined_boxes[i] = new_box
+                    break
+            else:
+                combined_boxes.append(box)
+        return combined_boxes
+
+    def _is_close(self, box1, box2, threshold):
+        x1, y1, x2, y2 = box1
+        x1_2, y1_2, x2_2, y2_2 = box2
+
+        distance = min(abs(x1 - x1_2), abs(x2 - x2_2), abs(y1 - y1_2), abs(y2 - y2_2))
+        return distance < threshold
+
+    def _decode_predictions(self, scores, geometry):
         (numRows, numCols) = scores.shape[2:4]
         rects = []
         confidences = []
