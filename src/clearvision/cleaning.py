@@ -1,7 +1,3 @@
-import logging
-
-import cv2
-
 from clearvision.imageproc.toolkit import (
     adjust_contrast_brightness,
     denoise_image,
@@ -10,34 +6,12 @@ from clearvision.imageproc.toolkit import (
 )
 
 
-class TextCleaning:
-    def clean_text_areas(self, image, bounding_boxes):
-        cleaned_images = []
-        for startX, startY, endX, endY in bounding_boxes:
-            # Extract the region of interest
-            roi = image[startY:endY, startX:endX]
+def clean_text_areas(image):
+    image = denoise_image(image)
 
-            # Check if the ROI is empty
-            if roi is None or roi.size == 0:
-                logging.warning(
-                    f"Warning: \
-                        Empty ROI detected at coordinates \
-                        (({startX}, {startY}), \
-                        ({endX}, {endY}))"
-                )
-                continue
+    image = deskew(image, method="moments")
+    image = adjust_contrast_brightness(image, method="clahe")
 
-            roi = denoise_image(roi)
+    image = thresholding(image, method="otsu")
 
-            roi = deskew(roi, method="moments")
-            roi = adjust_contrast_brightness(roi, method="clahe")
-
-            roi = thresholding(roi, method="otsu")
-
-            # Debug: Display the processed ROI
-            cv2.imshow("Debug Window", roi)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-
-            cleaned_images.append(roi)
-        return cleaned_images
+    return image

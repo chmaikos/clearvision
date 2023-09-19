@@ -1,68 +1,46 @@
 import cv2
-from PIL import Image
-from pytesseract import pytesseract
-
-from clearvision.cleaning import TextCleaning
-from clearvision.detection import TextDetection
+import keras_ocr
 
 
 class OCR:
     def __init__(self):
-        pass
+        self.pipeline = keras_ocr.pipeline.Pipeline(scale=2)
 
-    def perform_ocr(self, image_path):
-        text_detection = TextDetection()
-        text_cleaning = TextCleaning()
-
+    def perform_ocr(self, image_path, confidence_threshold=0.8):
         image = cv2.imread(image_path)
-        bounding_boxes = text_detection.detect_text_areas(image)
-        cleaned_images = text_cleaning.clean_text_areas(image, bounding_boxes)
+        img = keras_ocr.tools.read(image_path)
+
+        # Get detailed OCR results including bounding boxes and confidence scores
+        ocr_results = self.pipeline.recognize([img])[0]
 
         results = []
-        for i, cleaned_image in enumerate(cleaned_images):
-            pil_image = Image.fromarray(cleaned_image.astype("uint8"))
-
-            # Get detailed OCR results including confidence scores
-            ocr_result = pytesseract.image_to_data(
-                pil_image, output_type=pytesseract.Output.DICT
-            )
-
-            # Calculate mean confidence
-            confidences = [conf for conf in ocr_result["conf"] if conf != -1]
-            mean_confidence = (
-                round(sum(confidences) / len(confidences), 1) if confidences else 0.0
-            )
-
+        for text, box in ocr_results:
             # Get the full OCR text
-            text = " ".join([text for text in ocr_result["text"] if text])
+            full_text = " ".join(text.split())
 
-            # Get the most suspicious characters (with the lowest confidence)
-            suspicious_chars = []
-            for j, word in enumerate(ocr_result["text"]):
-                if ocr_result["conf"][j] != -1 and ocr_result["conf"][j] < 80:
-                    for k, char in enumerate(word):
-                        char_conf = pytesseract.image_to_data(
-                            pil_image.crop(
-                                (
-                                    ocr_result["left"][j] + k,
-                                    ocr_result["top"][j],
-                                    ocr_result["left"][j] + k + 1,
-                                    ocr_result["top"][j] + ocr_result["height"][j],
-                                )
-                            ),
-                            output_type=pytesseract.Output.DICT,
-                        )["conf"][0]
-                        if char_conf < 80:
-                            suspicious_chars.append(
-                                {"char": char, "position_in_word": k + 1}
-                            )
+            # Draw the bounding box and text on the image for debugging
+            box = box.astype(int)
+            cv2.polylines(image, [box], isClosed=True, color=(0, 255, 0), thickness=2)
+            cv2.putText(
+                image,
+                full_text,
+                (box[0][0], box[0][1] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 0, 255),
+                1,
+            )
 
             results.append(
                 {
-                    "text": text,
-                    "coordinates": bounding_boxes[i].tolist(),
-                    "mean_confidence": mean_confidence,
-                    "suspicious_chars": suspicious_chars,
+                    "text": full_text,
+                    "coordinates": box.tolist(),
                 }
             )
+
+        # Show the debug window
+        cv2.imshow("Debug Window", image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
         return results
