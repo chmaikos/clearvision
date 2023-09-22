@@ -6,12 +6,12 @@ from clearvision.imageproc.toolkit import (
 )
 
 
-def clean_text_areas(image):
+def prep(image, dmethod="moments", cmethod="clahe", tmethod="otsu"):
     image = denoise_image(image)
 
-    image = deskew(image, method="moments")
-    image = adjust_contrast_brightness(image, method="clahe")
+    image = deskew(image, dmethod)
+    image = adjust_contrast_brightness(image, cmethod)
 
-    image = thresholding(image, method="otsu")
+    image = thresholding(image, tmethod)
 
     return image

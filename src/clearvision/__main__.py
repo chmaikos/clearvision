@@ -7,8 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from clearvision.ocr import OCR
 
-logging.basicConfig(level=logging.INFO)
-
 
 def main():
     parser = argparse.ArgumentParser(
