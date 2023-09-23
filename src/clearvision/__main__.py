@@ -1,10 +1,10 @@
 import argparse
 import json
-import logging
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
+from clearvision import logger
 from clearvision.ocr import OCR
 
 
@@ -16,7 +16,7 @@ def main():
     args = parser.parse_args()
 
     if not os.path.exists(args.input):
-        logging.error(f"Invalid path: {args.input}")
+        logger.error(f"Invalid path: {args.input}")
         sys.exit(1)
 
     ocr = OCR()
@@ -36,7 +36,7 @@ def main():
             if res is not None:
                 output_data[image_paths[i]] = res
             else:
-                logging.error(f"Failed to process image: {image_paths[i]}")
+                logger.error(f"Failed to process image: {image_paths[i]}")
 
         with open("output.json", "w") as json_file:
             json.dump(output_data, json_file, indent=4)
@@ -46,7 +46,7 @@ def main():
             with open("output.json", "w") as json_file:
                 json.dump({args.input: results}, json_file, indent=4)
         else:
-            logging.error(f"Failed to process image: {args.input}")
+            logger.error(f"Failed to process image: {args.input}")
 
 
 if __name__ == "__main__":
