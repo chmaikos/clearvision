@@ -5,6 +5,8 @@ from clearvision.imageproc.toolkit import (
     thresholding,
 )
 
+#  TODO: Add support for different image preparation methods
+
 
 def prep(image, dmethod="moments", cmethod="clahe", tmethod="otsu"):
     image = denoise_image(image)

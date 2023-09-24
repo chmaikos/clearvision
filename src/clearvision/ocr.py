@@ -14,12 +14,12 @@ class OCR:
         detector_weights: str = None,
     ):
         self.detector = (
-            keras_ocr.detection.Detector(weights_path=detector_weights)
+            keras_ocr.detection.Detector(weights=detector_weights)
             if detector_weights
             else keras_ocr.detection.Detector()
         )
         self.recognizer = (
-            keras_ocr.recognition.Recognizer(weights_path=recognizer_weights)
+            keras_ocr.recognition.Recognizer(weights=recognizer_weights)
             if recognizer_weights
             else keras_ocr.recognition.Recognizer()
         )
