@@ -11,22 +11,28 @@ class OCR:
         self,
         scale_factor: float = 2.0,
         recognizer_weights: str = None,
-        detector_weights: str = None,
+        alphabet: str = keras_ocr.recognition.DEFAULT_ALPHABET,
     ):
-        self.detector = (
-            keras_ocr.detection.Detector(weights=detector_weights)
-            if detector_weights
-            else keras_ocr.detection.Detector()
-        )
-        self.recognizer = (
-            keras_ocr.recognition.Recognizer(weights=recognizer_weights)
-            if recognizer_weights
-            else keras_ocr.recognition.Recognizer()
-        )
+        self.detector = keras_ocr.detection.Detector()
+
+        if recognizer_weights:
+            self.recognizer = keras_ocr.recognition.Recognizer(
+                weights=None, alphabet=alphabet
+            )
+            self._load_custom_weights(self.recognizer.model, recognizer_weights)
+        else:
+            self.recognizer = keras_ocr.recognition.Recognizer()
+
         self.pipeline = keras_ocr.pipeline.Pipeline(
             detector=self.detector, recognizer=self.recognizer, scale=scale_factor
         )
         logger.info("Pipeline setup complete")
+
+    def _load_custom_weights(self, model, weights_path):
+        try:
+            model.load_weights(weights_path)
+        except ValueError as e:
+            logger.warning(f"Failed to load custom weights: {e}")
 
     def perform_ocr(self, image_input: Union[str, np.ndarray]) -> Union[Dict, None]:
         img = self._read_image(image_input)
